@@ -1,0 +1,70 @@
+
+name: Bhabna APK Builder
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Bhabna_PhoneBuild.zip'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Extract Project
+        run: |
+          mkdir -p source
+          unzip -o Bhabna_PhoneBuild.zip -d source
+
+          PROJECT_DIR=$(dirname "$(find source \
+            \( -name settings.gradle -o -name settings.gradle.kts \) \
+            -print -quit)")
+
+          if [ ! -f "$PROJECT_DIR/app/build.gradle" ] && \
+             [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+            echo "Android app module not found"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+      - name: Install Android Packages
+        run: |
+          sdkmanager "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
+
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew --no-daemon assembleDebug
+          else
+            echo "Gradle wrapper not found"
+            exit 1
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bhabna-APK
+          path: source/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
